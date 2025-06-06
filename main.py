@@ -1,10 +1,9 @@
 import sys
-from PyQt6.QtWidgets import QApplication, QLabel
+from PyQt6.QtWidgets import QApplication
+from login import LoginWindow
 
-class MainWindow(QApplication, QLabel):
+if __name__ == "__main__":
     app = QApplication(sys.argv)
-    label = QLabel("<font color=red size=40>Hello World!</font>")
-    label.show()
-    app.exec()
-
-# изменения
+    window = LoginWindow()
+    window.show()
+    sys.exit(app.exec())

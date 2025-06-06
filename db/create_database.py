@@ -41,7 +41,7 @@ try:
                            );
                            """)
             cursor.execute("""
-                           CREATE TABLE IF NOT EXISTS Users(
+                            CREATE TABLE IF NOT EXISTS Users(
                                             userId int AUTO_INCREMENT PRIMARY KEY,
                                             name VARCHAR(25) NOT NULL,
                                             surname VARCHAR(25) NOT NULL,
@@ -49,9 +49,10 @@ try:
                                             licenseDriver VARCHAR(10) NOT NULL,
                                             balance DECIMAL(10, 2) DEFAULT 0.00,
                                             password VARCHAR(255) NOT NULL,  
-                                            email VARCHAR(50) NOT NULL UNIQUE,
-                                            createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP       
-                           ); 
+                                            phone VARCHAR(20) UNIQUE,
+                                            isAdmin BOOLEAN DEFAULT 0,
+                                            createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            );
                            """)
             cursor.execute("""
                             CREATE TABLE IF NOT EXISTS Car(
