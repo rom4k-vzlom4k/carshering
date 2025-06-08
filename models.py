@@ -40,3 +40,28 @@ def delete_car(car_id):
     with conn.cursor() as cursor:
         cursor.execute("DELETE FROM Car WHERE carId=%s", (car_id,))
         conn.commit()
+
+def get_rental_history(user_id):
+    conn = get_connection()
+    with conn.cursor() as cursor:
+        cursor.execute("""
+            SELECT 
+                s.sessionId,
+                t.tripid,
+                t.startTime,
+                t.endTime,
+                t.distance,
+                t.cost,
+                c.model,
+                CASE 
+                    WHEN t.endTime IS NULL THEN 'Активна'
+                    ELSE 'Завершена'
+                END as status
+            FROM sessionrental s
+            JOIN trip t ON s.tripId = t.tripId  
+            JOIN car c ON s.carId = c.carId       
+            WHERE s.userId = %s
+            ORDER BY t.startTime DESC
+        """, (user_id,))
+        return cursor.fetchall()
+    

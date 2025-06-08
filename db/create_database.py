@@ -67,9 +67,6 @@ try:
             cursor.execute("""
                            CREATE TABLE IF NOT EXISTS SessionRental(
                                             sessionId int AUTO_INCREMENT PRIMARY KEY,
-                                            startTime TIMESTAMP NOT NULL,
-                                            endTime TIMESTAMP NULL,
-                                            totalCost DECIMAL(10, 2) DEFAULT 0.00,
                                             userId INT NOT NULL, 
                                             carId INT NOT NULL,   
                                             tripId INT NOT NULL,
