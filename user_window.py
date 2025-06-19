@@ -2,7 +2,10 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QListWidget, QPushBut
                              QToolButton,QMenu,
                              QDialog, QTableWidget, QTableWidgetItem)
 from PyQt6.QtGui import QAction
-from models import get_available_cars, update_car_status, get_rental_history
+from models import (
+    get_available_cars, create_rental, get_active_rental,
+    cancel_rental, get_rental_history
+)
 
 class UserWindow(QWidget):
     def __init__(self, user):
@@ -10,107 +13,103 @@ class UserWindow(QWidget):
         self.setWindowTitle("Пользователь")
         self.resize(600, 400)
         self.user = user
-        self.userId = user['userId']
+        self.active_rental = None
 
-        main_layout = QVBoxLayout()
-        header_layout = QHBoxLayout()
-        
-        menu_btn = QToolButton()
-        menu_btn.setText("☰")
+        self.layout = QVBoxLayout()
 
-        menu_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        
-        menu = QMenu(self)
-        profile_action = QAction("Профиль", self)
-        profile_action.triggered.connect(self.show_profile)
-        menu.addAction(profile_action)
+        top_layout = QHBoxLayout()
+        self.label = QLabel(f"Добро пожаловать, {user['name']}")
 
-        session_action = QAction("История", self)
-        session_action.triggered.connect(self.show_sessionRental)
-        menu.addAction(session_action)
-        
-        menu_btn.setMenu(menu)
-        
-        header_layout.addWidget(menu_btn)
-        header_layout.addWidget(QLabel(f"Добро пожаловать, {user['phone']}"))
-        header_layout.addStretch() 
-        
-        main_layout.addLayout(header_layout)
-        
+        self.burger_btn = QToolButton()
+        self.burger_btn.setText("☰")
+        self.burger_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+
+        self.menu = QMenu()
+        self.profile_action = QAction("Профиль")
+        self.history_action = QAction("История поездок")
+        self.menu.addAction(self.profile_action)
+        self.menu.addAction(self.history_action)
+
+        self.burger_btn.setMenu(self.menu)
+        self.profile_action.triggered.connect(self.show_profile)
+        self.history_action.triggered.connect(self.show_sessionRental)
+
+        top_layout.addWidget(self.label)
+        top_layout.addStretch()
+        top_layout.addWidget(self.burger_btn)
+
+        self.status_label = QLabel()
         self.list = QListWidget()
-        self.load_cars()
-        
+
         self.book_btn = QPushButton("Забронировать")
+        self.cancel_btn = QPushButton("Отменить аренду")
         self.book_btn.clicked.connect(self.book)
-        
-        main_layout.addWidget(QLabel("Доступные машины:"))
-        main_layout.addWidget(self.list)
-        main_layout.addWidget(self.book_btn)
-        
-        self.setLayout(main_layout)
+        self.cancel_btn.clicked.connect(self.cancel)
 
-    def show_profile(self):
-        QMessageBox.information(self, "Профиль", 
-                               f"Телефон: {self.user['phone']}\n"
-                               f"Номер вод. удостоверения: {self.user.get('licenseDriver', 'не указана')}")
-        
-    def show_sessionRental(self):
-        try:
-            history = get_rental_history(self.userId)
-            
-            if not history:
-                QMessageBox.information(self, "История аренд", "Еще нет завершенных аренд")
-                return
-                
-            dialog = QDialog(self)
-            dialog.setWindowTitle("История аренд")
-            dialog.resize(800, 400)
-            
-            layout = QVBoxLayout()
-            
-            table = QTableWidget()
-            table.setColumnCount(6)
-            table.setHorizontalHeaderLabels([
-                "ID сессии", 
-                "Начало аренды", 
-                "Окончание аренды", 
-                "Пройдено (км)", 
-                "Стоимость (₽)", 
-                "Автомобиль"
-            ])
-            
-            table.setRowCount(len(history))
-            for row, session in enumerate(history):
-                table.setItem(row, 0, QTableWidgetItem(str(session['sessionId'])))
-                table.setItem(row, 1, QTableWidgetItem(str(session['startTime'])))  
-                table.setItem(row, 2, QTableWidgetItem(
-                    str(session['endTime']) if session['endTime'] else "В процессе"
-                ))
-                table.setItem(row, 3, QTableWidgetItem(str(session['distance'])))
-                table.setItem(row, 4, QTableWidgetItem(str(session['cost'])))
-                table.setItem(row, 5, QTableWidgetItem(session['model']))
-            
-            table.resizeColumnsToContents()
-            table.setAlternatingRowColors(True)
-            
-            layout.addWidget(table)
-            dialog.setLayout(layout)
-            dialog.exec()
-            
-        except Exception as e:
-            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить историю: {str(e)}")
+        btn_layout = QHBoxLayout()
+        btn_layout.addWidget(self.book_btn)
+        btn_layout.addWidget(self.cancel_btn)
 
+        self.table = QTableWidget()
+        self.table.hide()
 
-    def load_cars(self):
+        self.layout.addLayout(top_layout)
+        self.layout.addWidget(self.status_label)
+        self.layout.addWidget(self.list)
+        self.layout.addLayout(btn_layout)
+        self.layout.addWidget(self.table)
+        self.setLayout(self.layout)
+
+        self.refresh_ui()
+
+    def refresh_ui(self):
         self.list.clear()
-        self.cars = get_available_cars()
-        for car in self.cars:
-            self.list.addItem(f"{car['model']} — {car['pricePerMinute']} ₽/мин")
+        self.active_rental = get_active_rental(self.user['userId'])
+        if self.active_rental:
+            self.status_label.setText(f"\nвы арендуете: {self.active_rental['model']}")
+            self.list.setDisabled(True)
+            self.book_btn.setDisabled(True)
+            self.cancel_btn.setDisabled(False)
+        else:
+            self.status_label.setText("\nдоступные машины:")
+            self.cars = get_available_cars()
+            for car in self.cars:
+                self.list.addItem(f"{car['model']} — {car['pricePerMinute']} ₽/мин")
+            self.list.setDisabled(False)
+            self.book_btn.setDisabled(False if self.cars else True)
+            self.cancel_btn.setDisabled(True)
+        self.table.hide()
 
     def book(self):
         i = self.list.currentRow()
         if i >= 0:
             car_id = self.cars[i]['carId']
-            update_car_status(car_id, 'inUse')
+            create_rental(self.user['userId'], car_id)
             QMessageBox.information(self, "Готово", "Машина забронирована")
-            self.load_cars()
+            self.refresh_ui()
+
+    def cancel(self):
+        if self.active_rental:
+            cancel_rental(self.active_rental['sessionId'], self.active_rental['carId'])
+            QMessageBox.information(self, "Отмена", "Аренда отменена")
+            self.refresh_ui()
+
+    def show_profile(self):
+        info = f"Телефон: {self.user['phone']}\nВУ: {self.user['licenseDriver']}"
+        QMessageBox.information(self, "Профиль", info)
+
+    def show_sessionRental(self):
+        data = get_rental_history(self.user['userId'])
+        self.table.setRowCount(len(data))
+        self.table.setColumnCount(6)
+        self.table.setHorizontalHeaderLabels(["Авто", "Начало", "Конец", "Статус", "Расстояние (км)", "Стоимость (₽)"])
+        for row, rental in enumerate(data):
+            self.table.setItem(row, 0, QTableWidgetItem(rental['model']))
+            self.table.setItem(row, 1, QTableWidgetItem(str(rental['startTime'])))
+            self.table.setItem(row, 2, QTableWidgetItem(str(rental['endTime'] or 'В процессе')))
+            self.table.setItem(row, 3, QTableWidgetItem(rental['status']))
+            self.table.setItem(row, 4, QTableWidgetItem(str(rental['distance'] or 0)))
+            self.table.setItem(row, 5, QTableWidgetItem(str(rental['cost'] or 0)))
+        
+        self.table.show()
+
